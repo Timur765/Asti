@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Каталог — ASTI</title>
+<meta name="description" content="Каталог ASTI: куртки, футболки, худи, джинсы, обувь, аксессуары. Поиск и фильтры по цене, размеру, цвету и наличию.">
+<meta name="theme-color" content="#0d0d0d">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="ASTI">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600&family=Inter:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="css/style.css">
+<script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script defer src="js/config.js"></script>
+<script defer src="js/common.js"></script>
+<script defer src="js/catalog.js"></script>
+</head>
+<body data-page="catalog">
+<div id="site-header"></div>
+<main>
+  <div class="wrap">
+    <div class="page-hd"><p class="eyebrow">ASTI</p><h1 class="h2" id="title">Каталог</h1></div>
+    <div class="cat">
+      <aside class="filters" id="filters" aria-label="Фильтры">
+        <div class="filters__hd"><b>Фильтры</b><button class="ib" id="fClose" aria-label="Закрыть"><svg viewBox="0 0 24 24"><path d="m5 5 14 14M19 5 5 19"/></svg></button></div>
+        <div class="fg"><h4>Категория</h4><div class="fcats" id="fCats"></div></div>
+        <div class="fg"><h4>Цена, ₽</h4><div class="rng"><input id="pMin" type="number" inputmode="numeric" min="0" placeholder="От"><input id="pMax" type="number" inputmode="numeric" min="0" placeholder="До"></div></div>
+        <div class="fg"><h4>Размер</h4><div class="szs" id="fSizes"></div></div>
+        <div class="fg"><h4>Цвет</h4><div class="cols" id="fColors"></div></div>
+        <div class="fg"><h4>Наличие</h4>
+          <label class="opt"><input type="checkbox" id="avIn"> В наличии</label>
+          <label class="opt"><input type="checkbox" id="avPre"> Предзаказ</label>
+        </div>
+        <button class="freset" id="fReset">Сбросить фильтры</button>
+        <div class="filters__ft"><button class="btn btn--block" id="fApply">Показать товары</button></div>
+      </aside>
+      <section>
+        <div class="bar">
+          <label class="search"><span class="sr">Поиск</span><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4.5 4.5"/></svg><input id="q" type="search" placeholder="Поиск по каталогу" autocomplete="off"></label>
+          <button class="btn btn--line fbtn" id="fOpen">Фильтры<span id="fN"></span></button>
+          <select class="sel" id="sort" aria-label="Сортировка">
+            <option value="new">Сначала новые</option>
+            <option value="asc">Цена: по возрастанию</option>
+            <option value="desc">Цена: по убыванию</option>
+            <option value="name">По названию</option>
+          </select>
+        </div>
+        <p class="count" id="count">&nbsp;</p>
+        <div class="grid" id="grid"></div>
+      </section>
+    </div>
+  </div>
+</main>
+<div id="site-footer"></div>
+</body>
+</html>

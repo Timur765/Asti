@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>ASTI — интернет-магазин одежды</title>
+<meta name="description" content="ASTI — интернет-магазин одежды, обуви и аксессуаров. Заказ онлайн, подтверждение в Telegram.">
+<meta name="theme-color" content="#0d0d0d">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="ASTI">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600&family=Inter:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="css/style.css">
+<script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script defer src="js/config.js"></script>
+<script defer src="js/common.js"></script>
+<script defer src="js/index.js"></script>
+</head>
+<body data-page="home">
+<div id="site-header"></div>
+<main>
+  <section class="hero">
+    <div class="hero__bg"></div>
+    <div class="hero__img" id="heroImg"></div>
+    <div class="wrap hero__in">
+      <p class="eyebrow reveal" style="color:#9a958a">Интернет-магазин одежды</p>
+      <h1 class="hero__title reveal">ASTI</h1>
+      <p class="hero__sub reveal">Минимализм, который остаётся с вами дольше сезона.</p>
+      <div class="hero__cta reveal">
+        <a class="btn btn--light" href="catalog.html">Смотреть каталог</a>
+        <a class="btn btn--ghost" href="#new">Новинки</a>
+      </div>
+    </div>
+  </section>
+
+  <section class="sec" style="padding-bottom:0">
+    <div class="wrap">
+      <div class="chips reveal" id="cats"></div>
+    </div>
+  </section>
+
+  <section class="sec" id="new">
+    <div class="wrap">
+      <div class="sec__hd reveal"><div><p class="eyebrow">Свежие поступления</p><h2 class="h2">Новинки</h2></div><a class="link" href="catalog.html">Весь каталог</a></div>
+      <div class="grid" id="gridNew"></div>
+    </div>
+  </section>
+
+  <section class="sec" id="popular" style="padding-top:0">
+    <div class="wrap">
+      <div class="sec__hd reveal"><div><p class="eyebrow">Выбор покупателей</p><h2 class="h2">Популярное</h2></div><a class="link" href="catalog.html">Смотреть все</a></div>
+      <div class="grid" id="gridPop"></div>
+    </div>
+  </section>
+
+  <section class="sec about" id="about">
+    <div class="wrap about__g">
+      <div class="reveal">
+        <p class="eyebrow">О магазине</p>
+        <h2 class="h2" style="margin-top:12px">ASTI — одежда,<br>обувь и аксессуары</h2>
+        <p>Мы собрали в одном каталоге куртки и пуховики, трикотаж, джинсы, костюмы, обувь, головные уборы и сумки. Выбирайте размер и цвет, оформляйте заказ онлайн — менеджер ответит в Telegram и уточнит детали оплаты и доставки.</p>
+      </div>
+      <div class="feat reveal">
+        <div><i>01</i><p><b>Заказ за минуту</b><span>Корзина и оформление прямо на сайте, без регистрации.</span></p></div>
+        <div><i>02</i><p><b>Подтверждение в Telegram</b><span>Заказ мгновенно попадает менеджеру магазина.</span></p></div>
+        <div><i>03</i><p><b>Наличие и предзаказ</b><span>Статус каждого товара виден в каталоге и на странице товара.</span></p></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="tg" id="telegram">
+    <div class="wrap reveal">
+      <p class="eyebrow">Telegram</p>
+      <h2 class="h2">Всегда на связи</h2>
+      <p>Вопросы по размеру, наличию и доставке — напишите менеджеру магазина в Telegram.</p>
+      <a class="btn btn--light" href="https://t.me/ast1_shop" target="_blank" rel="noopener">Написать в Telegram</a>
+    </div>
+  </section>
+</main>
+<div id="site-footer"></div>
+<noscript><p style="padding:20px;text-align:center">Для работы магазина включите JavaScript.</p></noscript>
+</body>
+</html>

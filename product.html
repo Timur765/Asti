@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Товар — ASTI</title>
+<meta name="description" content="Карточка товара ASTI.">
+<meta name="theme-color" content="#0d0d0d">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="ASTI">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600&family=Inter:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="css/style.css">
+<script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script defer src="js/config.js"></script>
+<script defer src="js/common.js"></script>
+<script defer src="js/product.js"></script>
+</head>
+<body data-page="product">
+<div id="site-header"></div>
+<main>
+  <div class="wrap">
+    <div class="crumbs" id="crumbs"><a href="index.html">Главная</a> / <a href="catalog.html">Каталог</a></div>
+    <div id="pdp"><div class="pdp"><div class="sk" style="aspect-ratio:4/5"></div><div></div></div></div>
+    <section class="sec" id="relWrap" hidden style="padding-top:20px">
+      <div class="sec__hd"><div><p class="eyebrow">Смотрите также</p><h2 class="h2">Похожие товары</h2></div></div>
+      <div class="grid" id="rel"></div>
+    </section>
+  </div>
+</main>
+<div class="lb" id="lb"><button aria-label="Закрыть">×</button><img alt=""></div>
+<div id="site-footer"></div>
+</body>
+</html>
