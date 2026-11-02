@@ -65,9 +65,10 @@ module.exports = async (req, res) => {
   let products;
   try {
     const r = await fetch(`${SUPABASE_URL}/rest/v1/products?select=*&id=in.(${ids.join(',')})&is_published=eq.true`, {
-     headers: SUPABASE_ANON_KEY.startsWith('sb_')
-  ? { apikey: SUPABASE_ANON_KEY }
-  : { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` }, `Bearer ${SUPABASE_ANON_KEY}` },
+      // новые ключи sb_publishable_… — не JWT, их передают только в apikey; старые anon-ключи (JWT) — ещё и в Authorization
+      headers: SUPABASE_ANON_KEY.startsWith('sb_')
+        ? { apikey: SUPABASE_ANON_KEY }
+        : { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` },
     });
     if (!r.ok) throw new Error('db ' + r.status);
     products = await r.json();
@@ -90,7 +91,10 @@ module.exports = async (req, res) => {
         return res.status(409).json({ error: 'not_enough_stock', id: it.id, name: p.name, stock: p.stock });
       }
       if (Array.isArray(p.sizes) && p.sizes.length && !p.sizes.includes(it.size)) {
-        return res.status(400).json({ error: 'size_required', name: p.name });
+        return res.status(400).json({ error: 'size_required', name: p
+
+
+name });
       }
     }
     let line = `• <b>${esc(p.name)}</b>`;
@@ -148,4 +152,4 @@ module.exports = async (req, res) => {
   }
 
   return res.status(200).json({ ok: true, number });
-};
+};.
