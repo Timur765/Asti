@@ -65,7 +65,9 @@ module.exports = async (req, res) => {
   let products;
   try {
     const r = await fetch(`${SUPABASE_URL}/rest/v1/products?select=*&id=in.(${ids.join(',')})&is_published=eq.true`, {
-      headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` },
+     headers: SUPABASE_ANON_KEY.startsWith('sb_')
+  ? { apikey: SUPABASE_ANON_KEY }
+  : { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` }, `Bearer ${SUPABASE_ANON_KEY}` },
     });
     if (!r.ok) throw new Error('db ' + r.status);
     products = await r.json();
