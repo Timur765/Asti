@@ -18,7 +18,7 @@ function rateLimited(ip) {
   return arr.length > 8;
 }
 
-module.exports = async (req, res) => {
+async function handler(req, res) {
   res.setHeader('Cache-Control', 'no-store');
   if (req.method !== 'POST') return res.status(405).json({ error: 'method_not_allowed' });
 
@@ -91,10 +91,7 @@ module.exports = async (req, res) => {
         return res.status(409).json({ error: 'not_enough_stock', id: it.id, name: p.name, stock: p.stock });
       }
       if (Array.isArray(p.sizes) && p.sizes.length && !p.sizes.includes(it.size)) {
-        return res.status(400).json({ error: 'size_required', name: p
-
-
-name });
+        return res.status(400).json({ error: 'size_required', name: p.name });
       }
     }
     let line = `• <b>${esc(p.name)}</b>`;
@@ -152,4 +149,13 @@ name });
   }
 
   return res.status(200).json({ ok: true, number });
-};.
+}
+
+module.exports = async (req, res) => {
+  try {
+    return await handler(req, res);
+  } catch (e) {
+    console.error('order handler crashed', e);
+    return res.status(500).json({ error: 'crash', detail: String((e && e.message) || e).slice(0, 300) });
+  }
+};
