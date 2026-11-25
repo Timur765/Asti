@@ -43,14 +43,14 @@ document.addEventListener('DOMContentLoaded', async () => {
       ${ext ? '<div class="note"><b>Фото и характеристики уточняются.</b><br>Напишите нам в Telegram — менеджер уточнит наличие, цену, размеры и сроки.</div>' : ''}
       ${p.description && !(ext && /уточняются\.?$/i.test(p.description.trim())) ? `<div class="desc">${esc(p.description)}</div>` : '<div style="height:18px"></div>'}
       ${ext ? '' : `<div class="opts">
-        ${colors.length ? `<div class="opt-row"><h4>Цвет <span id="cName">${esc(color)}</span></h4><div class="cols" id="colors">${colors.map((c, i) => `<button type="button" class="col ${i ? '' : 'on'}" data-c="${esc(c.name)}" title="${esc(c.name)}" aria-label="${esc(c.name)}" style="background:${esc(c.hex || '#ccc')}"></button>`).join('')}</div></div>` : ''}
+        ${colors.length ? `<div class="opt-row"><h4>Цвет <span id="cName">${esc(color)}</span></h4><div class="cols" id="colors">${colors.map((c, i) => `<button type="button" class="col ${i ? '' : 'on'}" data-c="${esc(c.name)}" title="${esc(c.name)}" aria-label="${esc(c.name)}" style="background:${(/^#[0-9a-f]{6}$/i.test(c.hex) ? c.hex : '#ccc')}"></button>`).join('')}</div></div>` : ''}
         ${sizes.length ? `<div class="opt-row" id="sizeRow"><h4>Размер <span id="sName">выберите</span></h4><div class="szs" id="sizes">${sizes.map((s) => `<button type="button" class="sz" data-s="${esc(s)}">${esc(s)}</button>`).join('')}</div></div>` : ''}
         <div class="opt-row"><h4>Количество</h4><div class="qty"><button type="button" id="qm" aria-label="Меньше">−</button><output id="qv">1</output><button type="button" id="qp" aria-label="Больше">+</button></div></div>
       </div>`}
       <div class="buy">
         ${ext
           ? `<a class="btn" id="askTg" href="${TG}" target="_blank" rel="noopener">Уточнить в Telegram</a>
-             ${p.external_url ? `<a class="btn btn--line" href="${esc(p.external_url)}" target="_blank" rel="noopener nofollow">Открыть на Pinduoduo</a>` : ''}`
+             ${p.external_url && /^https:\/\//i.test(p.external_url) ? `<a class="btn btn--line" href="${esc(p.external_url)}" target="_blank" rel="noopener nofollow">Открыть на Pinduoduo</a>` : ''}`
           : av === 'out'
             ? `<button class="btn" disabled>Нет в наличии</button><a class="btn btn--line" href="${TG}" target="_blank" rel="noopener">Узнать о поступлении</a>`
             : `<button class="btn" id="buy">${av === 'preorder' ? 'Оформить предзаказ' : 'Заказать'}</button><button class="btn btn--line" id="add">Добавить в корзину</button>`}
@@ -86,8 +86,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
     return true;
   }
-  if ($('#add')) $('#add').onclick = () => { if (!validate()) return; cartAdd(p, size, color, qty); toast('Добавлено в корзину'); };
-  if ($('#buy')) $('#buy').onclick = () => { if (!validate()) return; cartAdd(p, size, color, qty); openDrawer('checkout'); };
+  if ($('#add')) $('#add').onclick = () => { if (!validate()) return; if (cartAdd(p, size, color, qty)) toast('Добавлено в корзину'); };
+  if ($('#buy')) $('#buy').onclick = () => { if (!validate()) return; if (cartAdd(p, size, color, qty)) openDrawer('checkout'); };
   if ($('#askTg')) $('#askTg').addEventListener('click', () => {
     const t = `Здравствуйте! Интересует «${p.name}». Уточните, пожалуйста, фото, характеристики, цену и сроки.`;
     if (navigator.clipboard) navigator.clipboard.writeText(t).then(() => toast('Текст сообщения скопирован — вставьте его в чат')).catch(() => {});
