@@ -141,7 +141,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       original: p ? [...(p.images || [])] : [],
       uploaded: [], busy: 0,
     };
-    const v = p || { name: '', description: '', category: '', price: '', old_price: '', stock: 0, status: 'in_stock', sizes: [], is_new: false, is_popular: false, is_published: true, is_external: false, external_url: '' };
+    const v = p || { name: '', description: '', category: '', price: '', old_price: '', stock: 0, status: 'in_stock', sizes: [], is_new: false, is_popular: false, is_published: false, is_external: false, external_url: '' };
     dlg.innerHTML = `<form id="ef" novalidate>
       <div class="ed__hd"><h3>${p ? 'Редактирование' : 'Новый товар'}</h3><button type="button" class="ib" data-x aria-label="Закрыть"><svg viewBox="0 0 24 24"><path d="m5 5 14 14M19 5 5 19"/></svg></button></div>
       <div class="ed__bd">
@@ -183,6 +183,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       (E.busy ? `<div class="up">Загрузка… ${E.busy}</div>` : '');
   }
   async function closeEditor(saved) {
+    if (E && E.busy) { toast('Дождитесь окончания загрузки фото'); return; }
     if (!saved && E && E.uploaded.length) await removeFiles(E.uploaded); // убираем загруженное, но не сохранённое
     dlg.close();
   }
@@ -220,9 +221,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (!name) return (err.textContent = 'Укажите название.');
     if (E.busy) return (err.textContent = 'Дождитесь окончания загрузки фото.');
     const num = (k) => { const s = String(f.get(k) ?? '').trim(); return s === '' ? null : Math.max(0, Math.round(+s)); };
-    const sizes = [...new Set(String(f.get('sizes')).split(/[\s,;]+/).map((s) => s.trim().toUpperCase()).filter(Boolean))];
+    const sizes = [...new Set(String(f.get('sizes')).replace(/ONE\s+SIZE/gi,'ONE_SIZE').split(/[\s,;]+/).map((s) => s.trim().toUpperCase().replace(/^ONE_SIZE$/, 'ONE SIZE')).filter(Boolean))];
     const colors = E.colors.map((c) => ({ name: c.name.trim(), hex: c.hex })).filter((c) => c.name);
     const isExt = f.get('is_external') === 'on';
+    const url = String(f.get('external_url') || '').trim();
+    if (isExt && url && !/^https:\/\//i.test(url)) return (err.textContent = 'Введите HTTPS-ссылку на товар.');
     const payload = {
       name, description: String(f.get('description')).trim(), category: String(f.get('category')) || null,
       price: num('price'), old_price: num('old_price'), stock: num('stock') ?? 0, status: String(f.get('status')),
@@ -236,7 +239,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     btn.disabled = false;
     if (error) return (err.textContent = 'Ошибка сохранения: ' + error.message);
     // удаляем из хранилища фото, которые убрали из товара
-    await removeFiles(E.original.filter((u) => !E.images.includes(u)));
+    await removeFiles([...new Set([...E.original, ...E.uploaded])].filter((u) => !E.images.includes(u)));
     await closeEditor(true);
     await loadProducts(); renderList(); toast('Товар сохранён');
   });

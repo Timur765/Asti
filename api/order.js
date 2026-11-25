@@ -2,6 +2,7 @@
 // Токен бота хранится ТОЛЬКО в переменных окружения сервера и никогда не попадает в браузер.
 // Цены берутся из базы данных, а не из браузера — подменить их нельзя.
 
+const { randomBytes } = require('node:crypto');
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const hits = new Map(); // простейший лимит запросов (на экземпляр функции)
 
@@ -37,6 +38,7 @@ async function handler(req, res) {
   if (!body || typeof body !== 'object') return res.status(400).json({ error: 'bad_request' });
   if (body.website) return res.status(200).json({ ok: true, number: 'OK' }); // honeypot для ботов
 
+  if (body.consent !== true) return res.status(400).json({ error: 'consent_required' });
   const c = body.customer || {};
   const customer = {
     name: clip(c.name, 80),
@@ -49,16 +51,17 @@ async function handler(req, res) {
     return res.status(400).json({ error: 'invalid_customer' });
   }
 
-  const rawItems = Array.isArray(body.items) ? body.items.slice(0, 40) : [];
-  const items = rawItems
-    .map((i) => ({
-      id: String(i.id || ''),
-      size: clip(i.size, 20),
-      color: clip(i.color, 40),
-      qty: Math.max(1, Math.min(99, parseInt(i.qty, 10) || 1)),
-    }))
-    .filter((i) => UUID.test(i.id));
-  if (!items.length) return res.status(400).json({ error: 'empty_cart' });
+  if (!Array.isArray(body.items) || !body.items.length || body.items.length > 40) return res.status(400).json({ error: 'empty_cart' });
+  const items = [];
+  const quantities = new Map();
+  for (const i of body.items) {
+    if (!i || !UUID.test(String(i.id || '')) || !Number.isInteger(i.qty) || i.qty < 1 || i.qty > 99) return res.status(400).json({ error: 'invalid_item' });
+    const id = String(i.id).toLowerCase();
+    const q = (quantities.get(id) || 0) + i.qty;
+    if (q > 99) return res.status(400).json({ error: 'invalid_item' });
+    quantities.set(id, q);
+    items.push({ id, size: clip(i.size, 100), color: clip(i.color, 100), qty: i.qty });
+  }
 
   // Актуальные данные о товарах из базы
   const ids = [...new Set(items.map((i) => i.id))];
@@ -66,6 +69,7 @@ async function handler(req, res) {
   try {
     const r = await fetch(`${SUPABASE_URL}/rest/v1/products?select=*&id=in.(${ids.join(',')})&is_published=eq.true`, {
       // новые ключи sb_publishable_… — не JWT, их передают только в apikey; старые anon-ключи (JWT) — ещё и в Authorization
+      signal: AbortSignal.timeout(8000),
       headers: SUPABASE_ANON_KEY.startsWith('sb_')
         ? { apikey: SUPABASE_ANON_KEY }
         : { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` },
@@ -83,17 +87,20 @@ async function handler(req, res) {
   for (const it of items) {
     const p = byId.get(it.id);
     if (!p) return res.status(409).json({ error: 'product_unavailable', id: it.id });
+    if (p.status === 'out_of_stock') return res.status(409).json({error:'out_of_stock',id:it.id,name:p.name});
     if (!p.is_external) {
       if (p.status === 'out_of_stock' || (p.status === 'in_stock' && p.stock <= 0)) {
         return res.status(409).json({ error: 'out_of_stock', id: it.id, name: p.name });
       }
-      if (p.status === 'in_stock' && it.qty > p.stock) {
+      if (p.status === 'in_stock' && quantities.get(it.id) > p.stock) {
         return res.status(409).json({ error: 'not_enough_stock', id: it.id, name: p.name, stock: p.stock });
       }
       if (Array.isArray(p.sizes) && p.sizes.length && !p.sizes.includes(it.size)) {
         return res.status(400).json({ error: 'size_required', name: p.name });
       }
     }
+    if (Array.isArray(p.colors) && p.colors.length && !p.colors.some(c => c && c.name === it.color)) return res.status(400).json({error:'color_required',name:p.name});
+    if (Array.isArray(p.sizes) && p.sizes.length && !p.sizes.includes(it.size)) return res.status(400).json({error:'size_required',name:p.name});
     let line = `• <b>${esc(p.name)}</b>`;
     const meta = [it.size && `размер ${it.size}`, it.color && it.color].filter(Boolean).join(', ');
     if (meta) line += `\n   ${esc(meta)}`;
@@ -112,7 +119,7 @@ async function handler(req, res) {
     lines.push(line);
   }
 
-  const number = 'A' + Date.now().toString(36).toUpperCase().slice(-6);
+  const number = 'A' + randomBytes(6).toString('hex').toUpperCase();
   const text = [
     `🛍 <b>Новый заказ ASTI №${number}</b>`,
     '',
@@ -127,24 +134,26 @@ async function handler(req, res) {
     customer.comment ? `💬 ${esc(customer.comment)}` : '',
   ].filter((l) => l !== '').join('\n');
 
+  if (text.length > 3900) return res.status(400).json({error:'order_too_large'});
   try {
     const tg = await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
       method: 'POST',
+      signal: AbortSignal.timeout(8000),
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         chat_id: TELEGRAM_CHAT_ID,
-        text: text.slice(0, 4000),
+        text,
         parse_mode: 'HTML',
         disable_web_page_preview: true,
       }),
     });
     const j = await tg.json().catch(() => ({}));
     if (!tg.ok || !j.ok) {
-      console.error('Telegram error', tg.status, j.description);
+      console.error('Telegram error', tg.status);
       return res.status(502).json({ error: 'telegram_failed' });
     }
   } catch (e) {
-    console.error('Telegram fetch failed', e.message);
+    console.error('Telegram fetch failed');
     return res.status(502).json({ error: 'telegram_failed' });
   }
 
@@ -155,7 +164,7 @@ module.exports = async (req, res) => {
   try {
     return await handler(req, res);
   } catch (e) {
-    console.error('order handler crashed', e);
-    return res.status(500).json({ error: 'crash', detail: String((e && e.message) || e).slice(0, 300) });
+    console.error('order handler crashed');
+    return res.status(500).json({ error: 'crash' });
   }
 };

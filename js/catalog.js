@@ -33,7 +33,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     const colors = new Map();
     all.forEach((p) => (p.colors || []).forEach((c) => { if (c && c.name) colors.set(c.name.toLowerCase(), c); }));
-    $('#fColors').innerHTML = colors.size ? [...colors.values()].map((c) => `<button type="button" class="col" data-c="${esc(c.name.toLowerCase())}" title="${esc(c.name)}" aria-label="${esc(c.name)}" style="background:${esc(c.hex || '#ccc')}"></button>`).join('') : '<span style="color:#888;font-size:13px">нет данных</span>';
+    $('#fColors').innerHTML = colors.size ? [...colors.values()].map((c) => `<button type="button" class="col" data-c="${esc(c.name.toLowerCase())}" title="${esc(c.name)}" aria-label="${esc(c.name)}" style="background:${(/^#[0-9a-f]{6}$/i.test(c.hex) ? c.hex : '#ccc')}"></button>`).join('') : '<span style="color:#888;font-size:13px">нет данных</span>';
   }
 
   function apply() {
