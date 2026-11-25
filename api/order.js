@@ -149,7 +149,7 @@ async function handler(req, res) {
     });
     const j = await tg.json().catch(() => ({}));
     if (!tg.ok || !j.ok) {
-      console.error('Telegram error', tg.status, j.description);
+      console.error('Telegram error', tg.status);
       return res.status(502).json({ error: 'telegram_failed' });
     }
   } catch (e) {
