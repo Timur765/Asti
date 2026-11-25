@@ -49,6 +49,7 @@
 
   /* ───── Вспомогательные функции товара ───── */
   function availability(p) {
+    if (p.status === 'out_of_stock') return 'out';
     if (p.is_external) return 'pending';
     if (p.status === 'preorder') return 'preorder';
     if (p.status === 'out_of_stock' || !(p.stock > 0)) return 'out';
@@ -112,9 +113,11 @@
   function cartAdd(p, size, color, qty) {
     const c = cartGet();
     const hit = c.find((i) => i.id === p.id && (i.size || '') === (size || '') && (i.color || '') === (color || ''));
-    if (hit) hit.qty = Math.min(maxQty(p), hit.qty + qty);
-    else c.push({ id: p.id, size: size || '', color: color || '', qty: Math.min(maxQty(p), qty), name: p.name, price: p.price, image: (p.images || [])[0] || '', ext: !!p.is_external, max: maxQty(p) });
-    cartSet(c);
+    const count = c.filter(i => i.id === p.id).reduce((n,i) => n+i.qty,0);
+    if (availability(p) === 'out' || count+qty > Math.min(99,maxQty(p)) || (!hit && c.length >= 40)) { toast('Недостаточно товара или превышен лимит корзины'); return false; }
+    if (hit) hit.qty += qty;
+    else c.push({ id: p.id, size: size || '', color: color || '', qty, name: p.name, price: p.price, image: (p.images || [])[0] || '', ext: !!p.is_external, max: maxQty(p) });
+    cartSet(c); return true;
   }
 
   /* ───── Шапка, меню, подвал, корзина ───── */
@@ -149,7 +152,7 @@
       <div class="ftr__g">
         <div><a class="logo" href="index.html">ASTI</a><p style="margin-top:14px;color:#666;max-width:300px;font-size:14px">Интернет-магазин одежды, обуви и аксессуаров.</p></div>
         <div><h4>Магазин</h4><ul><li><a href="catalog.html">Каталог</a></li><li><a href="index.html#new">Новинки</a></li><li><a href="index.html#about">О магазине</a></li></ul></div>
-        <div><h4>Связаться</h4><ul><li><a href="${TG}" target="_blank" rel="noopener">Telegram: @ast1_shop</a></li></ul></div>
+        <div><h4>Связаться</h4><ul><li><a href="${TG}" target="_blank" rel="noopener">Telegram: @ast1_shop</a></li><li><a href="privacy.html">Обработка данных</a></li></ul></div>
       </div><small>© ${new Date().getFullYear()} ASTI. Все права защищены.</small></div></footer>`;
     document.body.insertAdjacentHTML('beforeend', `
       <div class="ovl" id="ovl"></div>
@@ -229,7 +232,7 @@
         <button class="btn btn--block" data-go="checkout">Оформить заказ</button>`;
     } else if (view === 'checkout') {
       title.textContent = 'Оформление';
-      const saved = (() => { try { return JSON.parse(localStorage.getItem('asti_cust')) || {}; } catch { return {}; } })();
+      const saved = {}; // Не сохраняем адрес и контакты покупателя на устройстве.
       body.innerHTML = `<button class="back" data-go="cart">← В корзину</button>
         <form id="coForm" novalidate>
           <label class="fld"><span>Имя *</span><input name="name" autocomplete="name" required maxlength="80" value="${esc(saved.name)}"></label>
@@ -238,6 +241,7 @@
           <label class="fld"><span>Город и адрес доставки *</span><textarea name="address" rows="2" required maxlength="300" autocomplete="street-address">${esc(saved.address)}</textarea></label>
           <label class="fld"><span>Комментарий</span><textarea name="comment" rows="2" maxlength="500"></textarea></label>
           <input class="hp" name="website" tabindex="-1" autocomplete="off" aria-hidden="true">
+          <label class="opt"><input type="checkbox" name="consent" required> Согласен(-на) на обработку данных для заказа. <a href="privacy.html" target="_blank" rel="noopener">Подробнее</a></label>
           <p class="err" id="coErr" role="alert"></p>
         </form>
         <p style="font-size:12px;color:#777;margin:6px 0 14px">Нажимая «Отправить заказ», вы соглашаетесь на обработку указанных данных для связи по заказу. Менеджер свяжется с вами в Telegram или по телефону для подтверждения наличия, оплаты и доставки.</p>`;
@@ -269,32 +273,33 @@
     if (!f.name) return (err.textContent = 'Укажите имя.');
     if (f.phone.replace(/\D/g, '').length < 7) return (err.textContent = 'Укажите корректный телефон.');
     if (!f.address) return (err.textContent = 'Укажите город и адрес доставки.');
+    if (fd.consent !== 'on') return (err.textContent = 'Подтвердите согласие на обработку данных.');
     const c = cartGet();
     lastOrderText = orderText(c, f);
-    try { localStorage.setItem('asti_cust', JSON.stringify({ name: f.name, phone: f.phone, telegram: f.telegram, address: f.address })); } catch {}
+    try { localStorage.removeItem('asti_cust'); } catch {}
     btn.disabled = true; btn.textContent = 'Отправляем…';
     try {
       const r = await fetch('/api/order', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ items: c.map(({ id, size, color, qty }) => ({ id, size, color, qty })), customer: f, website: fd.website || '' }),
+        body: JSON.stringify({ items: c.map(({ id, size, color, qty }) => ({ id, size, color, qty })), customer: f, consent: true, website: fd.website || '' }),
       });
       const j = await r.json().catch(() => ({}));
       if (r.ok && j.ok) { doneNumber = j.number; cartSet([]); view = 'done'; renderDrawer(); return; }
       if (r.status === 409 || r.status === 400) {
         btn.disabled = false; btn.textContent = 'Отправить заказ';
-        const m = { out_of_stock: `«${j.name || 'Товар'}» закончился.`, not_enough_stock: `Для «${j.name || 'товара'}» доступно только ${j.stock} шт.`, product_unavailable: 'Один из товаров больше недоступен.', size_required: `Выберите размер для «${j.name || 'товара'}».` };
+        const m = { out_of_stock: `«${j.name || 'Товар'}» закончился.`, not_enough_stock: `Для «${j.name || 'товара'}» доступно только ${j.stock} шт.`, product_unavailable: 'Один из товаров больше недоступен.', size_required: `Выберите размер для «${j.name || 'товара'}».`, color_required: 'Проверьте цвет товара.', consent_required: 'Подтвердите согласие.', order_too_large: 'Разделите заказ на несколько заявок.', invalid_item: 'Проверьте количество товаров.' };
         err.textContent = m[j.error] || 'Проверьте данные заказа.';
         syncCart(); return;
       }
       throw new Error('send_failed');
-    } catch (e) { view = 'fail'; renderDrawer(); }
+    } catch (e) { btn.disabled = false; btn.textContent = 'Отправить заказ'; err.textContent = 'Не удалось подтвердить отправку. Перед повтором уточните у менеджера в Telegram, получен ли заказ.'; }
   }
   document.addEventListener('click', (e) => {
     if (!drawerOpen) return;
     const q = e.target.closest('[data-q]'), rm = e.target.closest('[data-rm]'), go = e.target.closest('[data-go]');
     if (q) {
       const [idx, d] = q.dataset.q.split(':').map(Number); const c = cartGet();
-      if (c[idx]) { c[idx].qty = Math.max(1, Math.min(c[idx].max || 99, c[idx].qty + d)); if (d > 0 && c[idx].qty === (c[idx].max || 99)) toast('Больше нет в наличии'); cartSet(c); }
+      if (c[idx]) { const other = c.filter((i,j)=>j!==idx && i.id===c[idx].id).reduce((n,i)=>n+i.qty,0); c[idx].qty = Math.max(1, Math.min(Math.max(1,Math.min(99,c[idx].max || 99)-other), c[idx].qty + d)); if (d > 0 && c[idx].qty === (c[idx].max || 99)) toast('Больше нет в наличии'); cartSet(c); }
     } else if (rm) { const c = cartGet(); c.splice(+rm.dataset.rm, 1); cartSet(c); }
     else if (go) { e.preventDefault(); view = go.dataset.go; renderDrawer(); }
     else if (e.target.id === 'coSend') submitOrder();
