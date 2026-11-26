@@ -5,15 +5,22 @@ module.exports=async(req,res)=>{
  const i=Number(req.query.i);
  if(req.method!=='GET'||!Number.isInteger(i)||i<1||i>urls.length)return res.status(400).json({error:'bad_index'});
  try{
- const r=await fetch(urls[i-1],{redirect:'manual',signal:AbortSignal.timeout(8000),headers:{Accept:'text/html,application/xhtml+xml'}});
+ let url=urls[i-1],r;const chain=[];const signal=AbortSignal.timeout(10000);
+ for(let j=0;j<4;j++){
+ r=await fetch(url,{redirect:'manual',signal,headers:{Accept:'text/html,application/xhtml+xml'}});
+ const loc=r.headers.get('location');if(r.status<300||r.status>=400||!loc)break;
+ const next=new URL(loc,url);chain.push({status:r.status,path:next.pathname,host:next.hostname});
+ if(next.protocol!=='https:'||next.hostname!=='mobile.yangkeduo.com'||/login|captcha|verify|auth/i.test(next.pathname)||next.href===url)break;
+ url=next.href;
+ }
  const loc=r.headers.get('location');
- if(!r.ok)return res.status(200).json({index:i,sourceStatus:r.status,redirect:loc?new URL(loc,urls[i-1]).pathname:null});
+ if(!r.ok)return res.status(200).json({index:i,sourceStatus:r.status,chain,redirect:loc?new URL(loc,urls[i-1]).pathname:null});
  const reader=r.body.getReader();const chunks=[];let n=0;
  for(;;){const {done,value}=await reader.read();if(done)break;n+=value.length;if(n>2500000){await reader.cancel();return res.status(200).json({index:i,error:'too_large'});}chunks.push(Buffer.from(value));}
  const html=Buffer.concat(chunks).toString('utf8');
  const title=html.match(/<title[^>]*>([\s\S]*?)<\/title>/i)?.[1]?.slice(0,300);
  const metadata=[...html.matchAll(/<meta\b[^>]*(?:og:|description|twitter:)[^>]*>/gi)].map(m=>m[0].slice(0,800)).slice(0,20);
  const snippets=[];for(const m of html.matchAll(/"(?:goodsName|goods_name|goodsId|goods_id|groupPrice|minGroupPrice|skuName|sku_name|skuList|sku_list|goodsDesc|goods_desc|gallery|goodsGallery|hdThumbUrl|thumbUrl|specs|price|priceInfo)"\s*:/g)){if(snippets.length>=35)break;snippets.push(html.slice(m.index,m.index+600));}
- return res.status(200).json({index:i,sourceStatus:r.status,bytes:n,title,metadata,snippets,loginOrChallenge:/验证码|安全验证|请登录|访问受限|captcha/i.test(html)});
+ return res.status(200).json({index:i,sourceStatus:r.status,chain,bytes:n,title,metadata,snippets,loginOrChallenge:/验证码|安全验证|请登录|访问受限|captcha/i.test(html)});
  }catch(e){return res.status(200).json({index:i,error:e.name});}
 };
