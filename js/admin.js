@@ -151,7 +151,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           <label class="fld"><span>Статус</span><select name="status">${STATUSES.map(([k, l]) => `<option value="${k}" ${v.status === k ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
         </div>
         <div class="row2">
-          <label class="fld"><span>Цена, ₽</span><input name="price" type="number" min="0" step="1" inputmode="numeric" value="${v.price ?? ''}" placeholder="пусто = цена уточняется"></label>
+          <label class="fld"><span>Цена, ₽</span><input name="price" type="number" min="0" step="1" inputmode="numeric" value="${v.price ?? ''}" placeholder="пусто = цена уточняется">${v.source_price_cny != null ? `<small>Ориентир закупки: ≈ ${esc(Number(v.source_price_cny).toFixed(2))} ¥${v.source_price_usd != null ? ` (источник: ${esc(Number(v.source_price_usd).toFixed(2))} USD)` : ''}. Введи розничную цену в рублях.</small>` : ''}</label>
           <label class="fld"><span>Старая цена, ₽</span><input name="old_price" type="number" min="0" step="1" inputmode="numeric" value="${v.old_price ?? ''}"><small>Показывается зачёркнутой, если больше цены</small></label>
         </div>
         <label class="fld"><span>Остаток, шт.</span><input name="stock" type="number" min="0" step="1" inputmode="numeric" value="${v.stock}"></label>
