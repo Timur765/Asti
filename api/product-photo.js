@@ -599,3 +599,19 @@ module.exports = async (req,res) => {
   res.setHeader('Cache-Control','no-store');
   return res.status(502).json({error:'supplier_image_unavailable'});
 };
+
+// Temporary preview-only validation; remove before merging.
+const photoHandler = module.exports;
+module.exports = async (req,res) => {
+  if (process.env.VERCEL_ENV !== 'preview' || typeof req.query.check !== 'string') return photoHandler(req,res);
+  const batch = Number(req.query.check);
+  if (!Number.isInteger(batch) || batch < 0 || batch > 10) return res.status(400).end();
+  const ids = Object.keys(photos).filter(x=>/^drop-.*-1$/.test(x)).sort().slice(batch*10,batch*10+10);
+  const results = await Promise.all(ids.map(async id => {
+    let code=0;
+    const mock={setHeader(){},status(s){code=s;return this;},end(){return this;},json(){return this;}};
+    try { await photoHandler({method:'GET',query:{id}},mock); } catch {}
+    return {id,status:code};
+  }));
+  return res.status(200).json({batch,results});
+};
