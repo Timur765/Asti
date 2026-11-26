@@ -56,7 +56,14 @@
     return 'in';
   }
   function priceHtml(p) {
-    if (p.price == null) return '<span class="price price--na">Цена уточняется</span>';
+    if (p.price == null) {
+      const source = p.source_price_cny == null ? NaN : Number(p.source_price_cny);
+      if (Number.isFinite(source) && source > 0) {
+        const cny = new Intl.NumberFormat('ru-RU', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(source);
+        return `<span class="price price--na">≈ ${esc(cny)} ¥<small style="display:block;font-size:.7em;font-weight:400">Ориентир закупки · цена заказа уточняется</small></span>`;
+      }
+      return '<span class="price price--na">Цена уточняется</span>';
+    }
     const old = p.old_price && p.old_price > p.price ? `<s>${money(p.old_price)}</s>` : '';
     return `<span class="price">${money(p.price)}${old}</span>`;
   }
