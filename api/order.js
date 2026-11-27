@@ -7,6 +7,15 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-
 const hits = new Map(); // простейший лимит запросов (на экземпляр функции)
 
 const esc = (s) => String(s ?? '').replace(/[&<>]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c]));
+// A supplier URL is server-side catalog data, not a buyer-supplied link.
+function supplierUrl(value) {
+  if (typeof value !== 'string' || value.length > 2048 || /[\s\u0000-\u001f\u007f]/.test(value.trim())) return null;
+  try {
+    const u = new URL(value.trim());
+    return (u.protocol === 'https:' || u.protocol === 'http:') && !u.username && !u.password ? u.href : null;
+  } catch { return null; }
+}
+const escapeAttr = (s) => esc(s).replace(/"/g, '&quot;');
 const clip = (s, n) => String(s ?? '').trim().slice(0, n);
 const money = (n) => new Intl.NumberFormat('ru-RU').format(n) + ' ₽';
 
@@ -113,10 +122,11 @@ async function handler(req, res) {
       total += unitPrice * it.qty;
       line += `\n   ${it.qty} × ${money(unitPrice)} = ${money(unitPrice * it.qty)}`;
     }
-    if (p.is_external && p.external_url) line += `\n   ${esc(p.external_url)}`;
+    const sourceUrl = supplierUrl(p.external_url);
+    line += sourceUrl ? `\n   🔗 <a href="${escapeAttr(sourceUrl)}">Открыть товар у поставщика</a>` : '\n   Ссылка поставщика не сохранена';
     if (p.status === 'preorder') line += '\n   ⏳ ПРЕДЗАКАЗ';
     lines.push(line);
-    financeItems.push({ id: p.id, name: clip(p.name, 250), size: it.size, color: it.color, qty: it.qty, unitPriceRub: unitPrice, subtotalRub: unitPrice == null ? null : unitPrice * it.qty, sourcePriceCny: p.source_price_cny == null ? null : Number(p.source_price_cny), status: p.status });
+    financeItems.push({ id: p.id, name: clip(p.name, 250), size: it.size, color: it.color, qty: it.qty, unitPriceRub: unitPrice, subtotalRub: unitPrice == null ? null : unitPrice * it.qty, sourcePriceCny: p.source_price_cny == null ? null : Number(p.source_price_cny), supplierUrl: sourceUrl, status: p.status });
   }
 
   // Same validated cart and customer in a short retry window -> same order ID.
@@ -136,11 +146,12 @@ async function handler(req, res) {
     customer.comment ? `💬 ${esc(customer.comment)}` : '',
   ].filter((l) => l !== '').join('\n');
 
-  if (text.length > 3900) return res.status(400).json({error:'order_too_large'});
+  // Telegram counts visible text after parsing HTML, not href attributes.
+  if (text.replace(/<[^>]*>/g, '').replace(/&(?:amp|lt|gt|quot);/g, 'x').length > 3900) return res.status(400).json({error:'order_too_large'});
   // Finance is private to authorized members. Retain the minimum contact needed to follow up.
   const note = [
     'Заказ с сайта ASTI №' + number,
-    ...financeItems.map(i => [i.name, i.size, i.color, i.qty + ' шт.', i.unitPriceRub == null ? 'цена уточняется' : money(i.subtotalRub)].filter(Boolean).join(' · ')),
+    ...financeItems.map(i => [i.name, i.size, i.color, i.qty + ' шт.', i.unitPriceRub == null ? 'цена уточняется' : money(i.subtotalRub), i.supplierUrl || 'Ссылка поставщика не сохранена'].filter(Boolean).join(' · ')),
     unpriced ? 'ВНИМАНИЕ: сумма предварительная; ' + unpriced + ' поз. без подтвержденной цены.' : '',
     'Телефон для связи: ' + customer.phone,
     'Оплата не подтверждена. Адрес и комментарий — в Telegram.'
