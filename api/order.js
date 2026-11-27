@@ -1,8 +1,8 @@
-// Vercel Serverless Function: приём заказа и отправка в Telegram.
+// Vercel Serverless Function: приём заказа, запись в ASTI Finance и уведомление Telegram.
 // Токен бота хранится ТОЛЬКО в переменных окружения сервера и никогда не попадает в браузер.
 // Цены берутся из базы данных, а не из браузера — подменить их нельзя.
 
-const { randomBytes } = require('node:crypto');
+const { createHmac } = require('node:crypto');
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const hits = new Map(); // простейший лимит запросов (на экземпляр функции)
 
@@ -23,8 +23,8 @@ async function handler(req, res) {
   res.setHeader('Cache-Control', 'no-store');
   if (req.method !== 'POST') return res.status(405).json({ error: 'method_not_allowed' });
 
-  const { TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, SUPABASE_URL, SUPABASE_ANON_KEY } = process.env;
-  if (!TELEGRAM_BOT_TOKEN || !TELEGRAM_CHAT_ID || !SUPABASE_URL || !SUPABASE_ANON_KEY) {
+  const { TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, SUPABASE_URL, SUPABASE_ANON_KEY, ASTI_FINANCE_ORDER_TOKEN } = process.env;
+  if (!TELEGRAM_BOT_TOKEN || !TELEGRAM_CHAT_ID || !SUPABASE_URL || !SUPABASE_ANON_KEY || !ASTI_FINANCE_ORDER_TOKEN) {
     return res.status(500).json({ error: 'server_not_configured' });
   }
 
@@ -84,6 +84,7 @@ async function handler(req, res) {
   let total = 0;
   let unpriced = 0;
   const lines = [];
+  const financeItems = [];
   for (const it of items) {
     const p = byId.get(it.id);
     if (!p) return res.status(409).json({ error: 'product_unavailable', id: it.id });
@@ -104,22 +105,23 @@ async function handler(req, res) {
     let line = `• <b>${esc(p.name)}</b>`;
     const meta = [it.size && `размер ${it.size}`, it.color && it.color].filter(Boolean).join(', ');
     if (meta) line += `\n   ${esc(meta)}`;
-    if (p.is_external) {
-      unpriced += 1;
-      line += `\n   ${it.qty} шт. — цена уточняется (Pinduoduo)`;
-      if (p.external_url) line += `\n   ${esc(p.external_url)}`;
-    } else if (p.price == null) {
+    const unitPrice = Number.isSafeInteger(p.price) && p.price > 0 ? p.price : null;
+    if (unitPrice == null) {
       unpriced += 1;
       line += `\n   ${it.qty} шт. — цена уточняется`;
     } else {
-      total += p.price * it.qty;
-      line += `\n   ${it.qty} × ${money(p.price)} = ${money(p.price * it.qty)}`;
+      total += unitPrice * it.qty;
+      line += `\n   ${it.qty} × ${money(unitPrice)} = ${money(unitPrice * it.qty)}`;
     }
+    if (p.is_external && p.external_url) line += `\n   ${esc(p.external_url)}`;
     if (p.status === 'preorder') line += '\n   ⏳ ПРЕДЗАКАЗ';
     lines.push(line);
+    financeItems.push({ id: p.id, name: clip(p.name, 250), size: it.size, color: it.color, qty: it.qty, unitPriceRub: unitPrice, subtotalRub: unitPrice == null ? null : unitPrice * it.qty, sourcePriceCny: p.source_price_cny == null ? null : Number(p.source_price_cny), status: p.status });
   }
 
-  const number = 'A' + randomBytes(6).toString('hex').toUpperCase();
+  // Same validated cart and customer in a short retry window -> same order ID.
+  const fingerprint = JSON.stringify({ customer, items: items.map(i => JSON.stringify(i)).sort(), bucket: Math.floor(Date.now() / 900000) });
+  const number = 'A' + createHmac('sha256', ASTI_FINANCE_ORDER_TOKEN).update(fingerprint).digest('hex').slice(0, 12).toUpperCase();
   const text = [
     `🛍 <b>Новый заказ ASTI №${number}</b>`,
     '',
@@ -135,6 +137,27 @@ async function handler(req, res) {
   ].filter((l) => l !== '').join('\n');
 
   if (text.length > 3900) return res.status(400).json({error:'order_too_large'});
+  // Finance is private to authorized members. Retain the minimum contact needed to follow up.
+  const note = [
+    'Заказ с сайта ASTI №' + number,
+    ...financeItems.map(i => [i.name, i.size, i.color, i.qty + ' шт.', i.unitPriceRub == null ? 'цена уточняется' : money(i.subtotalRub)].filter(Boolean).join(' · ')),
+    unpriced ? 'ВНИМАНИЕ: сумма предварительная; ' + unpriced + ' поз. без подтвержденной цены.' : '',
+    'Телефон для связи: ' + customer.phone,
+    'Оплата не подтверждена. Адрес и комментарий — в Telegram.'
+  ].filter(Boolean).join('\n').slice(0, 12000);
+  const payload = JSON.stringify({p_token: ASTI_FINANCE_ORDER_TOKEN,p_number: number,p_client: '№' + number + ' · ' + customer.name,p_total: total,p_note: note,p_items: financeItems,p_unpriced: unpriced});
+  const financeHeaders = { apikey: SUPABASE_ANON_KEY, 'Content-Type': 'application/json' };
+  if (!SUPABASE_ANON_KEY.startsWith('sb_')) financeHeaders.Authorization = `Bearer ${SUPABASE_ANON_KEY}`;
+  let saved = false;
+  for (let attempt = 0; attempt < 2 && !saved; attempt++) {
+    try {
+      const fr = await fetch(`${SUPABASE_URL}/rest/v1/rpc/asti_record_web_order`, { method: 'POST', signal: AbortSignal.timeout(5000), headers: financeHeaders, body: payload });
+      if (fr.ok) saved = (await fr.json()) === true;
+      else if (fr.status < 500 && fr.status !== 429) break;
+    } catch (e) { /* retry same order ID */ }
+  }
+  if (!saved) { console.error('Finance registration failed', number); return res.status(502).json({error:'finance_unavailable'}); }
+  // The accepted order is durable even if Telegram is temporarily down.
   try {
     const tg = await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
       method: 'POST',
@@ -150,11 +173,11 @@ async function handler(req, res) {
     const j = await tg.json().catch(() => ({}));
     if (!tg.ok || !j.ok) {
       console.error('Telegram error', tg.status);
-      return res.status(502).json({ error: 'telegram_failed' });
+      return res.status(200).json({ ok: true, number, telegramNotified: false });
     }
   } catch (e) {
     console.error('Telegram fetch failed');
-    return res.status(502).json({ error: 'telegram_failed' });
+    return res.status(200).json({ ok: true, number, telegramNotified: false });
   }
 
   return res.status(200).json({ ok: true, number });
